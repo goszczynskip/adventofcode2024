@@ -11,12 +11,6 @@ type Input struct {
 	ordering        [][2]int
 }
 
-type Node struct {
-	next     *Node
-	previous *Node
-	value    int
-}
-
 func parseInput(input string) (Input, error) {
 	rawLines := strings.Split(input, "\n")
 	result := Input{
