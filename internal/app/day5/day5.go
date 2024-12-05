@@ -66,10 +66,6 @@ func parseInput(input string) (Input, error) {
 	return result, nil
 }
 
-func buildOrderingGraph(orderings [][2]int) *Node {
-	return nil
-}
-
 func selectRelevantOrderings(orderings [][2]int, printStatement []int, cache map[int][][2]int) [][2]int {
 	result := make([][2]int, 0)
 	for _, page := range printStatement {
