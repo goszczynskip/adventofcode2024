@@ -106,9 +106,6 @@ func buildEquationTree(result int64, numbers []int64, allowedOperators string, a
 				total := prevTotal + numbers[1]
 
 				currentTree := &Node{total: total, number: numbers[1], equal: result == total}
-				if total > result {
-					continue
-				}
 
 				addNodeAux, err := buildEquationTree(result, numbers[1:], allowedOperators, currentTree)
 				if err != nil {
@@ -125,10 +122,6 @@ func buildEquationTree(result int64, numbers []int64, allowedOperators string, a
 
 				currentTree := &Node{total: total, number: numbers[1], equal: result == total}
 
-				if total > result {
-					continue
-				}
-
 				mulNodeAux, err := buildEquationTree(result, numbers[1:], allowedOperators, currentTree)
 				if err != nil {
 					return nil, err
@@ -144,14 +137,15 @@ func buildEquationTree(result int64, numbers []int64, allowedOperators string, a
 				concatenated := stringTotal + nextStringValue
 				total, err := strconv.ParseInt(concatenated, 10, 64)
 				if err != nil {
-					return nil, err
+					return nil, fmt.Errorf("concatenation overflow: %w", err)
+				}
+
+				// Verify the concatenation didn't cause overflow
+				if total < prevTotal {
+					return nil, fmt.Errorf("concatenation result %d is smaller than previous total %d", total, prevTotal)
 				}
 
 				currentTree := &Node{total: total, number: numbers[1], equal: result == total}
-
-				if total > result {
-					continue
-				}
 
 				conNodeAux, err := buildEquationTree(result, numbers[1:], allowedOperators, currentTree)
 				if err != nil {
@@ -210,16 +204,22 @@ func Part1(input string) (int, error) {
 	}
 
 	var result int64 = 0
+	equationCount := 0
 	for _, eq := range equations {
 		eqTree, err := buildEquationTree(int64(eq.result), eq.numbers, "+*", nil)
 		if err != nil {
 			return 0, err
 		}
+
 		canBeSolved := false
 		traverseLeafs(
 			eqTree,
 			func(tree *Node, branch []*Node, containsNew bool) {
-				if tree.equal {
+				err := verifyEquation(eq, branch)
+
+				if err != nil {
+					// fmt.Printf("Traverse error: %v", err)
+				} else {
 					canBeSolved = true
 				}
 			},
@@ -228,11 +228,18 @@ func Part1(input string) (int, error) {
 		)
 
 		if canBeSolved {
-			result += eq.result
+			nextResult := result + eq.result
+			if nextResult-eq.result == result {
+				result = nextResult
+			} else {
+				fmt.Println("Overflow")
+			}
+			equationCount++
 		}
 	}
 
 	fmt.Println(result)
+	fmt.Println(equationCount)
 
 	return 0, nil
 }
@@ -258,11 +265,17 @@ func verifyEquation(equation Equation, branch []*Node) error {
 			nextStringValue := strconv.FormatInt(branch[i+1].number, 10)
 			concatenated := stringTotal + nextStringValue
 			totalAux, err := strconv.ParseInt(concatenated, 10, 64)
-
-			// fmt.Println("String total:", stringTotal, "Int total:", total, "Next number:", branch[i+1].number, "New total:", totalAux, "Result:", equation.result)
 			if err != nil {
-				return err
+				return fmt.Errorf("concatenation overflow: %w", err)
 			}
+
+			// Verify the concatenation didn't cause overflow
+			if totalAux < total {
+				return fmt.Errorf("concatenation result %d is smaller than previous total %d", totalAux, total)
+			}
+
+			// fmt.Printf("Concatenation: %s + %s = %s (as number: %d)\n",
+			// 	stringTotal, nextStringValue, concatenated, totalAux)
 			total = totalAux
 			continue
 		}
@@ -293,11 +306,7 @@ func Part2(input string) (int, error) {
 		traverseLeafs(
 			eqTree,
 			func(tree *Node, branch []*Node, containsNew bool) {
-				err := verifyEquation(eq, branch)
-
-				if err != nil {
-					// fmt.Printf("Traverse error: %v", err)
-				} else {
+        if tree.equal {
 					canBeSolved = true
 				}
 			},
