@@ -2,22 +2,25 @@ package day6
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 )
 
 type Vec2 struct {
-	y int
-	x int
+	y int16
+	x int16
 }
 
 type Field struct {
-	visited  int
-	obstacle bool
-	start    bool
+	directions []Vec2
+	visited    int
+	obstacle   bool
+	start      bool
 }
 
 type Input struct {
-	matrix [][]Field
+	matrix [][]*Field
 	start  Vec2
 	size   Vec2
 }
@@ -27,7 +30,7 @@ func parseInput(input string) Input {
 
 	result := Input{
 		start:  Vec2{0, 0},
-		matrix: make([][]Field, 0),
+		matrix: make([][]*Field, 0),
 		size:   Vec2{0, 0},
 	}
 
@@ -38,20 +41,32 @@ func parseInput(input string) Input {
 
 		result.size.y++
 
-		if result.size.x < len(line) {
-			result.size.x = len(line)
+		if int(result.size.x) < len(line) {
+			result.size.x = int16(len(line))
 		}
 
-		result.matrix = append(result.matrix, make([]Field, len(line)))
+		result.matrix = append(result.matrix, make([]*Field, len(line)))
 		for j, char := range line {
 			switch char {
 			case '#':
-				result.matrix[i][j] = Field{0, true, false}
+				result.matrix[i][j] = &Field{visited: 0, obstacle: true, start: false, directions: make([]Vec2, 0)}
 			case '^':
-				result.matrix[i][j] = Field{1, false, true}
-				result.start = Vec2{i, j}
+				directions := make([]Vec2, 0)
+				directions = append(directions, Vec2{-1, 0})
+				result.matrix[i][j] = &Field{
+					visited:    1,
+					obstacle:   false,
+					start:      true,
+					directions: directions,
+				}
+				result.start = Vec2{int16(i), int16(j)}
 			default:
-				result.matrix[i][j] = Field{0, false, false}
+				result.matrix[i][j] = &Field{
+					visited:    0,
+					obstacle:   false,
+					start:      false,
+					directions: make([]Vec2, 0),
+				}
 			}
 		}
 	}
@@ -59,11 +74,11 @@ func parseInput(input string) Input {
 	return result
 }
 
-func printMatrix(matrix [][]Field, blockedPositions []Vec2) {
+func printMatrixWithBlocked(matrix [][]*Field, blockedPositions []Vec2) {
 	for y, row := range matrix {
 		for x, field := range row {
 			for _, blockedPosition := range blockedPositions {
-				if blockedPosition.y == y && blockedPosition.x == x {
+				if int(blockedPosition.y) == y && int(blockedPosition.x) == x {
 					fmt.Print("O")
 
 					goto end
@@ -77,6 +92,22 @@ func printMatrix(matrix [][]Field, blockedPositions []Vec2) {
 				fmt.Print(".")
 			}
 		end:
+		}
+
+		fmt.Print("\n")
+	}
+}
+
+func printMatrix(matrix [][]*Field) {
+	for _, row := range matrix {
+		for _, field := range row {
+			if field.obstacle {
+				fmt.Print("#")
+			} else if field.start {
+				fmt.Print("^")
+			} else {
+				fmt.Print(".")
+			}
 		}
 
 		fmt.Print("\n")
@@ -117,7 +148,7 @@ func Part1(input string) (int, error) {
 			break
 		}
 
-		nextField := &parsedInput.matrix[nextLocation.y][nextLocation.x]
+		nextField := parsedInput.matrix[nextLocation.y][nextLocation.x]
 
 		if nextField.obstacle {
 			direction = rotateClockwise(direction)
@@ -147,10 +178,45 @@ func Part1(input string) (int, error) {
 	return distinceLocationsVisited, nil
 }
 
+func canGoOut(matrix [][]*Field, start Vec2, size Vec2) bool {
+	currentLocation := start
+	// Top
+	direction := Vec2{-1, 0}
+
+	visitedLocationsMap := make(map[int64]bool)
+
+	for {
+		nextLocation := Vec2{
+			y: currentLocation.y + direction.y,
+			x: currentLocation.x + direction.x,
+		}
+
+		if nextLocation.y < 0 || nextLocation.y >= size.y || nextLocation.x < 0 || nextLocation.x >= size.x {
+			return true
+		}
+		key := int64(nextLocation.y) + (int64(nextLocation.x) << 8) + (int64(direction.y+2) << 16) + (int64(direction.x+2) << 24)
+
+		if visitedLocationsMap[key] {
+			return false
+		}
+
+		visitedLocationsMap[key] = true
+
+		nextField := matrix[nextLocation.y][nextLocation.x]
+
+		if nextField.obstacle {
+			direction = rotateClockwise(direction)
+			continue
+		}
+
+		currentLocation = nextLocation
+	}
+}
+
 type Vec3 struct {
-	y int
-	x int
-	z int
+	y int16
+	x int16
+	z int16
 }
 
 func Part2(input string) (int, error) {
@@ -160,7 +226,7 @@ func Part2(input string) (int, error) {
 	fmt.Println("Size:", parsedInput.size)
 	fmt.Println("")
 
-	// printMatrix(parsedInput.matrix)
+	printMatrix(parsedInput.matrix)
 
 	currentLocation := Vec2{
 		y: parsedInput.start.y,
@@ -170,46 +236,10 @@ func Part2(input string) (int, error) {
 	// Top
 	direction := Vec2{-1, 0}
 
-	sameLocationCounter := 0
-
-	traversedHorizontalAxis := make(map[int][2]*Vec3, 0)
-	traversedVerticalAxis := make(map[int][2]*Vec3, 0)
-
-	step := 0
-
 	for {
-		step++
 		nextLocation := Vec2{
 			y: currentLocation.y + direction.y,
 			x: currentLocation.x + direction.x,
-		}
-
-		if direction.y != 0 {
-			if val, ok := traversedVerticalAxis[currentLocation.x*direction.y]; ok {
-				if direction.y < 0 && val[1].y > currentLocation.y {
-					val[1].y = currentLocation.y
-				} else if direction.y > 0 && val[1].y < currentLocation.y {
-					val[1].y = currentLocation.y
-				}
-			} else {
-				traversedVerticalAxis[currentLocation.x*direction.y] = [2]*Vec3{
-					{currentLocation.y, currentLocation.x, step},
-					{currentLocation.y, currentLocation.x, step},
-				}
-			}
-		} else {
-			if val, ok := traversedHorizontalAxis[currentLocation.y*direction.x]; ok {
-				if direction.x < 0 && val[1].x > currentLocation.x {
-					val[1].x = currentLocation.x
-				} else if direction.x > 0 && val[1].x < currentLocation.x {
-					val[1].x = currentLocation.x
-				}
-			} else {
-				traversedHorizontalAxis[currentLocation.y*direction.x] = [2]*Vec3{
-					{currentLocation.y, currentLocation.x, step},
-					{currentLocation.y, currentLocation.x, step},
-				}
-			}
 		}
 
 		if nextLocation.y < 0 || nextLocation.y >= parsedInput.size.y || nextLocation.x < 0 || nextLocation.x >= parsedInput.size.x {
@@ -217,99 +247,133 @@ func Part2(input string) (int, error) {
 			break
 		}
 
-		nextField := &parsedInput.matrix[nextLocation.y][nextLocation.x]
+		nextField := parsedInput.matrix[nextLocation.y][nextLocation.x]
 
 		if nextField.obstacle {
 			direction = rotateClockwise(direction)
-			sameLocationCounter++
 
-			if sameLocationCounter == 4 {
-				return 0, fmt.Errorf("Stuck at location x:%d y:%d", currentLocation.x, currentLocation.y)
+			currentField := parsedInput.matrix[currentLocation.y][currentLocation.x]
+
+			if len(currentField.directions) == 0 {
+				currentField.directions = append(currentField.directions, direction)
+			} else {
+				for _, fieldDirection := range currentField.directions {
+					if direction.y == fieldDirection.y && direction.x == fieldDirection.x {
+						continue
+					}
+					currentField.directions = append(currentField.directions, direction)
+				}
 			}
-
 			continue
 		}
 
-		sameLocationCounter = 0
+		if len(nextField.directions) == 0 {
+			nextField.directions = append(nextField.directions, direction)
+		} else {
+			for _, fieldDirection := range nextField.directions {
+				if direction.y == fieldDirection.y && direction.x == fieldDirection.x {
+					continue
+				}
+				nextField.directions = append(nextField.directions, direction)
+			}
+		}
+
 		currentLocation = nextLocation
 		nextField.visited = nextField.visited + 1
 	}
 
-	positionsToBlock := make([]Vec2, 0)
+	var previousSwapY int
+	var previousSwapX int
 
-	for vKey, vVal := range traversedVerticalAxis {
-		var vDirection int
-		if vKey < 0 {
-			vDirection = -1
-		} else {
-			vDirection = 1
-		}
+	blockedLocationsMap := make(map[int64]Vec2, 0)
 
-		distance := (vVal[0].y - vVal[1].y) * vDirection * -1
+	for y, row := range parsedInput.matrix {
+		for x, field := range row {
+			if field.visited > 0 {
+				for _, direction := range field.directions {
+					if direction.y != 0 {
+						previousSwapY = y + int(direction.y)
+						previousSwapX = x
+					} else {
+						previousSwapY = y
+						previousSwapX = x + int(direction.x)
+					}
 
-		for i := 0; i < distance; i++ {
-			hKey := (vVal[0].y + i*vDirection) * vDirection * -1
+					if previousSwapY < 0 || previousSwapY >= int(parsedInput.size.y) || previousSwapX < 0 || previousSwapX >= int(parsedInput.size.x) {
+						continue
+					}
 
-			if hVal, ok := traversedHorizontalAxis[hKey]; ok {
-				if hVal[0].z > vVal[0].z {
-					continue
-				}
+					if previousSwapX == int(parsedInput.start.x) && previousSwapY == int(parsedInput.start.y) {
+						continue
+					}
 
-				diff := (vKey * vDirection) - hVal[1].x
-				if diff < 0 && vDirection < 0 || diff > 0 && vDirection > 0 {
-					positionsToBlock = append(positionsToBlock, Vec2{(hKey * vDirection * -1) + vDirection, vKey * vDirection})
-				}
-			}
-		}
-	}
+					if parsedInput.matrix[previousSwapY][previousSwapX].obstacle {
+						continue
+					}
 
-	for hKey, hVal := range traversedHorizontalAxis {
-		var hDirection int
-		if hKey < 0 {
-			hDirection = -1
-		} else {
-			hDirection = 1
-		}
+					parsedInput.matrix[previousSwapY][previousSwapX].obstacle = true
 
-		distance := (hVal[0].x - hVal[1].x) * hDirection * -1
-
-		for i := 0; i < distance; i++ {
-			vKey := (hVal[0].x + i*hDirection) * hDirection
-
-			if vVal, ok := traversedVerticalAxis[vKey]; ok {
-				if vVal[0].z > hVal[0].z {
-					continue
-				}
-
-				diff := (hKey * hDirection) - vVal[1].y
-
-				if diff < 0 && hDirection > 0 || diff > 0 && hDirection < 0 {
-					positionsToBlock = append(positionsToBlock, Vec2{hKey * hDirection, (vKey * hDirection) + hDirection})
+					if !canGoOut(parsedInput.matrix, parsedInput.start, parsedInput.size) {
+						key := int64(previousSwapY) + (int64(previousSwapX) << 32)
+						if _, ok := blockedLocationsMap[key]; !ok {
+							blockedLocationsMap[key] = Vec2{y: int16(previousSwapY), x: int16(previousSwapX)}
+						}
+					}
+					parsedInput.matrix[previousSwapY][previousSwapX].obstacle = false
 				}
 			}
 		}
 	}
 
-	filteredPositionsToBlock := make([]Vec2, 0)
+	blockedLocations := slices.Collect(maps.Values(blockedLocationsMap))
 
-	for _, position := range positionsToBlock {
-		skip := false
-		for y, line := range parsedInput.matrix {
-			for x, field := range line {
-				if field.obstacle && position.x == x && position.y == y {
-					skip = true
-				}
-			}
+	printMatrixWithBlocked(parsedInput.matrix, blockedLocations)
+
+	return len(blockedLocations), nil
+}
+
+type Difference struct {
+	achar    string
+	bchar    string
+	position Vec2
+}
+
+func compareStrings(a string, b string) []Difference {
+	alines := make([]string, 0)
+	blines := make([]string, 0)
+
+	for _, line := range strings.Split(a, "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		alines = append(alines, line)
+	}
+
+	for _, line := range strings.Split(b, "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
 		}
 
-		if !skip {
-			filteredPositionsToBlock = append(filteredPositionsToBlock, position)
+		blines = append(blines, line)
+	}
+
+	differences := make([]Difference, 0)
+	for i, aline := range alines {
+		for j, achar := range aline {
+			if achar != rune(blines[i][j]) {
+				differences = append(differences, Difference{
+					position: Vec2{0, int16(i)},
+					achar:    string(achar),
+					bchar:    string(blines[i][j]),
+				})
+			}
 		}
 	}
 
-	fmt.Println("Filtered positions to block:", filteredPositionsToBlock)
+	return differences
+}
 
-	printMatrix(parsedInput.matrix, filteredPositionsToBlock)
-
-	return len(filteredPositionsToBlock), nil
+func DebugDay6(validResult string, invalidResult string) {
+	comparisons := compareStrings(validResult, invalidResult)
+	fmt.Println("Differences:", comparisons)
 }

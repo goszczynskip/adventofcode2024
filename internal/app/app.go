@@ -80,3 +80,7 @@ func Run(day string, test bool) error {
 
 	return nil
 }
+
+func Debug() (error) {
+	return nil
+}
