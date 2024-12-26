@@ -10,6 +10,7 @@ import (
 	"adventofcode/internal/app/day7"
 	"adventofcode/internal/app/day8"
 	"adventofcode/internal/app/day9"
+	"adventofcode/internal/app/day10"
 	"fmt"
 	"os"
 	"strconv"
@@ -40,6 +41,7 @@ var solutions = []Solution{
 	{day7.Part1, day7.Part2},
 	{day8.Part1, day8.Part2},
 	{day9.Part1, day9.Part2},
+	{day10.Part1, day10.Part2},
 }
 
 // Run executes the main application logic
